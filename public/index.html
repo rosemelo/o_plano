@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desenho Interativo para Curta</title>
+    <style>
+        #toolbar {
+            margin-bottom: 10px;
+        }
+
+        #canvas {
+            border: 1px solid black;
+        }
+
+        .tool {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Desenhe sobre a imagem e ajude na criação do curta!</h1>
+    
+    <div id="toolbar">
+        <label for="color">Cor do Pincel:</label>
+        <input type="color" id="color" value="#000000" class="tool">
+        
+        <label for="size">Tamanho do Pincel:</label>
+        <input type="range" id="size" min="1" max="10" value="2" class="tool">
+        
+        <button id="erase" class="tool">Borracha</button>
+        <button id="undo" class="tool">Desfazer</button>
+        <button id="save" class="tool">Salvar Desenho</button>
+    </div>
+    
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let currentTool = 'pencil';
+        let history = [];
+
+        const backgroundImage = new Image();
+        backgroundImage.src = 'img/sonic.png'; // Verify the image path
+        backgroundImage.onload = function() {
+            ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+            saveHistory(); // Save the initial state
+        };
+        
+        function draw(e) {
+            if (!drawing) return;
+
+            const color = document.getElementById('color').value;
+            const size = document.getElementById('size').value;
+
+            ctx.lineWidth = size;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = currentTool === 'eraser' ? 'white' : color;
+
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        }
+
+        function saveHistory() {
+            history.push(canvas.toDataURL());
+            if (history.length > 10) history.shift(); // Limit history length
+        }
+
+        canvas.addEventListener('mousedown', () => {
+            drawing = true;
+            ctx.beginPath(); // Start a new path
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+            saveHistory();
+        });
+
+        canvas.addEventListener('mousemove', draw);
+
+        document.getElementById('erase').addEventListener('click', () => {
+            currentTool = 'eraser';
+        });
+
+        document.getElementById('undo').addEventListener('click', () => {
+            if (history.length > 1) {
+                history.pop(); // Remove the current state
+                const imgData = history[history.length - 1];
+                const img = new Image();
+                img.src = imgData;
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                };
+            }
+        });
+
+        document.getElementById('save').addEventListener('click', () => {
+            const dataURL = canvas.toDataURL('image/png');
+            
+            fetch('/save-drawing', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image: dataURL })
+            })
+            .then(response => response.text())
+            .then(data => {
+                alert('Desenho enviado para análise!');
+            })
+            .catch(error => {
+                console.error('Erro ao salvar o desenho:', error);
+            });
+        });
+    </script>
+</body>
+</html>
